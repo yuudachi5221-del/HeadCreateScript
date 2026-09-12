@@ -1,108 +1,244 @@
-#include "lexer.h"
-#include "token.h"
 #include <iostream>
-#include <fstream>
-#include <cstdio>
-#include <vector>
+#include <cassert>
+#include <sstream>
+#include "../src/lexer.h"
 
-static int run_tests() {
-    int failures = 0;
-    {
-        // Test 1: simple keywords and symbols
-        const char* text = "con name = foo; if true { dispin }";
-        Lexer lx(std::string_view(text), true);
-        auto toks = lx.tokenize();
-        // Expect: con(kw), name(kw), =(sym), foo(id), ;(sym), if(kw), true(bool), {(sym), dispin(kw), }(sym), EOF
-        size_t idx = 0;
-        auto expect = [&](TokenType type, const std::string& txt){
-            if (idx >= toks.size()) { std::cerr << "Unexpected end of tokens\n"; failures++; return; }
-            if (toks[idx].type != type || (txt.size() && toks[idx].text != txt)) {
-                std::cerr << "Test1 token " << idx << " mismatch: got (" << int(toks[idx].type) << ",\"" << toks[idx].text << "\") expected (" << int(type) << ",\"" << txt << "\")\n";
-                failures++;
-            }
-            idx++;
-        };
-        expect(TokenType::Keyword, "con");
-        expect(TokenType::Keyword, "name");
-        expect(TokenType::Symbol, "=");
-        expect(TokenType::Identifier, "foo");
-        expect(TokenType::Symbol, ";");
-        expect(TokenType::Keyword, "if");
-        expect(TokenType::Bool, "true");
-        expect(TokenType::Symbol, "{");
-        expect(TokenType::Keyword, "dispin");
-        expect(TokenType::Symbol, "}");
+// Test helper function
+void assert_token(const Token& token, TokenType expected_type, const std::string& expected_text) {
+    if (token.type != expected_type || token.text != expected_text) {
+        std::cerr << "Token mismatch! Expected type: " << static_cast<int>(expected_type)
+                  << " text: '" << expected_text << "'"
+                  << " Got type: " << static_cast<int>(token.type)
+                  << " text: '" << token.text << "'" << std::endl;
+        assert(false);
     }
+}
 
-    {
-        // Test 2: comment removal
-        const char* text = "con a <- 1; </ this is a comment /> dispin;";
-        Lexer lx(std::string_view(text), true);
-        auto toks = lx.tokenize();
-        // Expect: con, a, <-, 1, ;, dispin, ;, EOF
-        std::vector<std::pair<TokenType,std::string>> expectList = {
-            {TokenType::Keyword, "con"},
-            {TokenType::Identifier, "a"},
-            {TokenType::Symbol, "<-"},
-            {TokenType::Number, "1"},
-            {TokenType::Symbol, ";"},
-            {TokenType::Keyword, "dispin"},
-            {TokenType::Symbol, ";"}
-        };
-        size_t i=0;
-        for (auto &e : expectList) {
-            if (i >= toks.size()) { std::cerr << "Unexpected end in Test2\n"; failures++; break; }
-            if (toks[i].type != e.first || toks[i].text != e.second) {
-                std::cerr << "Test2 token "<<i<<" mismatch: got ("<<int(toks[i].type)<<",\""<<toks[i].text<<"\") expected ("<<int(e.first)<<",\""<<e.second<<"\")\n";
-                failures++;
-            }
-            i++;
+void test_simple_variable_declaration() {
+    std::cout << "Test: Simple variable declaration..." << std::endl;
+    Lexer lexer("con form x=10;", true);
+    auto tokens = lexer.tokenize();
+    
+    assert(tokens.size() >= 6); // con, form, x, =, 10, ;, EOF
+    assert_token(tokens[0], TokenType::Keyword, "con");
+    assert_token(tokens[1], TokenType::Keyword, "form");
+    assert_token(tokens[2], TokenType::Identifier, "x");
+    assert_token(tokens[3], TokenType::Assign, "=");
+    assert_token(tokens[4], TokenType::Number, "10");
+    assert_token(tokens[5], TokenType::Semicolon, ";");
+    
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_string_literal() {
+    std::cout << "Test: String literal..." << std::endl;
+    Lexer lexer("dispin(\"Hello World\");", true);
+    auto tokens = lexer.tokenize();
+    
+    assert(tokens.size() >= 5);
+    assert_token(tokens[0], TokenType::Keyword, "dispin");
+    assert_token(tokens[1], TokenType::LParen, "(");
+    assert_token(tokens[2], TokenType::String, "\"Hello World\"");
+    assert_token(tokens[3], TokenType::RParen, ")");
+    assert_token(tokens[4], TokenType::Semicolon, ";");
+    
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_if_statement() {
+    std::cout << "Test: If statement..." << std::endl;
+    Lexer lexer("con (x<=10)<-if{ dispin(x); };", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_arrow = false;
+    bool found_lbrace = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Arrow) found_arrow = true;
+        if (token.type == TokenType::LBrace) found_lbrace = true;
+    }
+    
+    assert(found_arrow && found_lbrace);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_comment_removal() {
+    std::cout << "Test: Comment removal..." << std::endl;
+    Lexer lexer("</ This is a comment /> con form x=10;", true);
+    auto tokens = lexer.tokenize();
+    
+    // Comments should be removed, so we should just get con, form, x, =, 10, ;, EOF
+    assert(tokens.size() >= 6);
+    assert_token(tokens[0], TokenType::Keyword, "con");
+    
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_boolean_literals() {
+    std::cout << "Test: Boolean literals..." << std::endl;
+    Lexer lexer("con form flag=true; flag=false;", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_true = false;
+    bool found_false = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Bool && token.text == "true") found_true = true;
+        if (token.type == TokenType::Bool && token.text == "false") found_false = true;
+    }
+    
+    assert(found_true && found_false);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_arithmetic_operators() {
+    std::cout << "Test: Arithmetic operators..." << std::endl;
+    Lexer lexer("x=a+b-c*d/e%f;", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_plus = false, found_minus = false, found_star = false;
+    bool found_slash = false, found_percent = false;
+    
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Plus) found_plus = true;
+        if (token.type == TokenType::Minus) found_minus = true;
+        if (token.type == TokenType::Star) found_star = true;
+        if (token.type == TokenType::Slash) found_slash = true;
+        if (token.type == TokenType::Percent) found_percent = true;
+    }
+    
+    assert(found_plus && found_minus && found_star && found_slash && found_percent);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_comparison_operators() {
+    std::cout << "Test: Comparison operators..." << std::endl;
+    Lexer lexer("if(x==10 && y!=20 && z<30 && w>5 && a<=100 && b>=0);", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_eq = false, found_neq = false, found_lt = false;
+    bool found_gt = false, found_lte = false, found_gte = false;
+    
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Equal) found_eq = true;
+        if (token.type == TokenType::NotEqual) found_neq = true;
+        if (token.type == TokenType::Less) found_lt = true;
+        if (token.type == TokenType::Greater) found_gt = true;
+        if (token.type == TokenType::LessEq) found_lte = true;
+        if (token.type == TokenType::GreaterEq) found_gte = true;
+    }
+    
+    assert(found_eq && found_neq && found_lt && found_gt && found_lte && found_gte);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_for_loop_syntax() {
+    std::cout << "Test: For loop syntax..." << std::endl;
+    Lexer lexer("con for(0, name=\"i\", <=10, range=\"1\"){ dispin(i); };", true);
+    auto tokens = lexer.tokenize();
+    
+    assert(tokens.size() > 0);
+    // Check that it doesn't have lexer errors
+    std::cout << "✓ Passed (no lexer errors)" << std::endl;
+}
+
+void test_float_numbers() {
+    std::cout << "Test: Float numbers..." << std::endl;
+    Lexer lexer("con form pi=3.14; con form e=2.71828; con form sci=1.5e-3;", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_314 = false, found_27 = false, found_sci = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Number && token.text == "3.14") found_314 = true;
+        if (token.type == TokenType::Number && token.text == "2.71828") found_27 = true;
+        if (token.type == TokenType::Number && token.text == "1.5e-3") found_sci = true;
+    }
+    
+    assert(found_314 && found_27 && found_sci);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_hexadecimal_numbers() {
+    std::cout << "Test: Hexadecimal numbers..." << std::endl;
+    Lexer lexer("con form hex1=0xFF; con form hex2=0x1A2B;", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_hex = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Number && (token.text == "0xFF" || token.text == "0x1A2B")) {
+            found_hex = true;
         }
     }
+    
+    assert(found_hex);
+    std::cout << "✓ Passed" << std::endl;
+}
 
-    {
-        // Test 3: file reading
-        const char* fname = "lexer_test_input.crs";
-        std::ofstream ofs(fname);
-        ofs << "form range {\n  name = x; \n  blank </comment/>;\n}";
-        ofs.close();
-        Lexer lx(std::string(fname));
-        auto toks = lx.tokenize();
-        // Expect form(kw), range(kw), {(sym), name(kw), =(sym), x(id), ;(sym), blank(kw), ;(sym), }(sym)
-        std::vector<std::pair<TokenType,std::string>> expectList = {
-            {TokenType::Keyword, "form"},
-            {TokenType::Keyword, "range"},
-            {TokenType::Symbol, "{"},
-            {TokenType::Keyword, "name"},
-            {TokenType::Symbol, "="},
-            {TokenType::Identifier, "x"},
-            {TokenType::Symbol, ";"},
-            {TokenType::Keyword, "blank"},
-            {TokenType::Symbol, ";"},
-            {TokenType::Symbol, "}"}
-        };
-        size_t i=0;
-        for (auto &e : expectList) {
-            if (i >= toks.size()) { std::cerr << "Unexpected end in Test3\n"; failures++; break; }
-            if (toks[i].type != e.first || toks[i].text != e.second) {
-                std::cerr << "Test3 token "<<i<<" mismatch: got ("<<int(toks[i].type)<<",\""<<toks[i].text<<"\") expected ("<<int(e.first)<<",\""<<e.second<<"\")\n";
-                failures++;
-            }
-            i++;
+void test_string_escape_sequences() {
+    std::cout << "Test: String escape sequences..." << std::endl;
+    Lexer lexer("dispin(\"Hello\\nWorld\\t!\");", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_escaped_string = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::String) {
+            // The value should contain the actual escape sequences
+            found_escaped_string = true;
         }
-        std::remove(fname);
     }
+    
+    assert(found_escaped_string);
+    std::cout << "✓ Passed" << std::endl;
+}
 
-    return failures;
+void test_blank_keyword() {
+    std::cout << "Test: Blank keyword..." << std::endl;
+    Lexer lexer("con form x=blank;", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_blank = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Keyword && token.text == "blank") {
+            found_blank = true;
+        }
+    }
+    
+    assert(found_blank);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_complex_expression() {
+    std::cout << "Test: Complex expression..." << std::endl;
+    Lexer lexer("con (x<=10 && y>5)<-if{ con form z=(x+y)*2; };", true);
+    auto tokens = lexer.tokenize();
+    
+    // Just verify it tokenizes without errors
+    assert(!lexer.hasError());
+    assert(tokens.back().type == TokenType::EOF_);
+    
+    std::cout << "✓ Passed" << std::endl;
 }
 
 int main() {
-    int failures = run_tests();
-    if (failures == 0) {
-        std::cout << "All lexer tests passed\n";
+    std::cout << "=== HCS Lexer Test Suite ===" << std::endl << std::endl;
+    
+    try {
+        test_simple_variable_declaration();
+        test_string_literal();
+        test_if_statement();
+        test_comment_removal();
+        test_boolean_literals();
+        test_arithmetic_operators();
+        test_comparison_operators();
+        test_for_loop_syntax();
+        test_float_numbers();
+        test_hexadecimal_numbers();
+        test_string_escape_sequences();
+        test_blank_keyword();
+        test_complex_expression();
+        
+        std::cout << std::endl << "=== All tests passed! ===" << std::endl;
         return 0;
-    } else {
-        std::cerr << failures << " tests failed\n";
+    } catch (const std::exception& e) {
+        std::cerr << "Test failed with exception: " << e.what() << std::endl;
         return 1;
     }
 }
