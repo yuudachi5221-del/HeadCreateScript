@@ -1,6 +1,6 @@
 # HeadCreateScript
 
-## 要件定義書 v0.1
+## 要件定義書 v0.2
 
 ---
 
@@ -486,6 +486,46 @@ con for(
 
 ---
 
+## 8.5 `while`
+
+`while` ループは条件が真の間、ブロックを繰り返す。
+
+基本構文：
+
+```text
+con (<condition>)<-while{
+    <statements>
+};
+```
+
+例：
+
+```text
+con form x=0;
+
+con (x<10)<-while{
+    dispin(x);
+    x=x+1;
+};
+```
+
+この場合、
+
+```text
+0
+1
+2
+3
+...
+9
+```
+
+と繰り返す。
+
+`while` は `if` や `for` と同じく `con` を使用して生成される構造である。
+
+---
+
 # 9. 表示
 
 ## 9.1 `dispin`
@@ -730,6 +770,7 @@ if
 ifel
 else
 for
+while
 name
 range
 dispin
@@ -779,6 +820,7 @@ IfStatement
 ElseIfStatement
 ElseStatement
 ForStatement
+WhileStatement
 DisplayStatement
 BinaryExpression
 LiteralExpression
@@ -991,191 +1033,53 @@ x=20;
 
 ---
 
-# 25. プロジェクト構成
+# 25. Lexer実装状況
+
+## 完了した機能
+
+- [x] キーワード認識（con, form, const, if, ifel, else, for, **while**, dispin, blank, true, false）
+- [x] 識別子の認識
+- [x] 数値のトークン化（整数、小数、16進数、8進数、指数表記）
+- [x] 文字列のトークン化（エスケープシーケンス対応）
+- [x] コメント削除（`</ ... />` 形式）
+- [x] 演算子の認識（`+`, `-`, `*`, `/`, `%`, `=`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `<-`）
+- [x] デリミタの認識（`(`, `)`, `{`, `}`, `;`）
+- [x] エラーハンドリング（詳細なエラーメッセージ）
+- [x] トークンユーティリティ（型判定、優先度、アソシエーション）
+
+## テスト
+
+包括的なLexerテストスイート（13個のテストケース）が実装済み。
+
+---
+
+# 26. プロジェクト構成
 
 推奨：
 
 ```text
 HeadCreateScript/
-│
 ├── src/
 │   ├── main.cpp
-│   │
-│   ├── lexer/
-│   │   ├── Lexer.cpp
-│   │   └── Lexer.hpp
-│   │
-│   ├── parser/
-│   │   ├── Parser.cpp
-│   │   └── Parser.hpp
-│   │
-│   ├── ast/
-│   │   ├── AST.hpp
-│   │   └── AST.cpp
-│   │
-│   ├── semantic/
-│   │   ├── SemanticAnalyzer.cpp
-│   │   └── SemanticAnalyzer.hpp
-│   │
-│   ├── codegen/
-│   │   ├── CodeGenerator.cpp
-│   │   └── CodeGenerator.hpp
-│   │
-│   └── runtime/
-│       ├── Runtime.hpp
-│       └── Runtime.cpp
-│
+│   ├── lexer.h              ✓ 完成
+│   ├── lexer.cpp            ✓ 完成
+│   ├── lexer_error.h        ✓ 完成
+│   ├── token.h              ✓ 完成
+│   ├── token_utility.h      ✓ 完成
+│   ├── parser.h
+│   ├── parser.cpp
+│   ├── ast.h
+│   ├── semantic.h
+│   ├── interpreter.h
+│   ├── interpreter.cpp
+│   ├── hcs_value.h
+│   ├── hcs_value.cpp
+│   ├── runtime.cpp
+│   └── launcher.cpp
 ├── tests/
-│   ├── hello.crs
-│   ├── variables.crs
-│   ├── conditions.crs
-│   └── loops.crs
-│
-├── examples/
-│   └── hello.crs
-│
-├── README.md
-└── CMakeLists.txt
+│   └── lexer_test.cpp       ✓ 完成
+├── CMakeLists.txt
+└── README.md
 ```
 
 ---
-
-# 26. 最初の動作目標
-
-まず以下のプログラムをコンパイルできる状態を目標とする。
-
-```text
-con form name="Head Create Script";
-
-dispin(name);
-```
-
-実行：
-
-```text
-Hello
-```
-
-ではなく、正確には、
-
-```text
-Head Create Script
-```
-
-と出力される。
-
-次の段階：
-
-```text
-con form x=10;
-
-con (x<=10)<-if{
-    dispin("x is 10 or less");
-}
-con ()<-else{
-    dispin("x is greater than 10");
-};
-```
-
-さらに：
-
-```text
-con for(
-    0,
-    name="i",
-    <=10
-){
-    dispin(i);
-};
-```
-
-をコンパイル・実行できること。
-
----
-
-# 27. 実装上の重要事項
-
-1. `.crs` ファイルを直接入力として受け付けること。
-2. コンパイラ自体はC++で実装すること。
-3. Windows環境を第一ターゲットとすること。
-4. 最終出力は`.exe`とすること。
-5. `con` は生成・定義構文に必須。
-6. `form` は動的型変数。
-7. `const` は再代入不可。
-8. `if / ifel / else` はすべて`con`が必要。
-9. `else` の条件は必ず空の`()`とする。
-10. 文末には`;`を要求する。
-11. コメント形式は`</ ... />`。
-12. エラーにはファイル名・行・列を含める。
-13. 最初から複雑な最適化は実装しない。
-14. Lexer → Parser → AST → Semantic Analysis → Code Generation の分離を維持する。
-15. 将来的にC++経由ではなく、LLVMまたは独自Backendへ変更できる構造にする。
-
----
-
-# 28. 将来拡張候補
-
-v0.1では必須としない。
-
-```text
-function
-class
-struct
-array
-object
-import
-module
-namespace
-exception
-pointer
-reference
-generic
-lambda
-async
-```
-
-また、将来的には
-
-```text
-.crs
- ↓
-HCS IR
- ↓
-LLVM IR
- ↓
-native executable
-```
-
-という構成へ変更可能な設計にする。
-
----
-
-# 29. 開発方針
-
-最初から全機能を実装しない。
-
-以下の順番で実装する。
-
-```text
-1. CLI
-2. .crsファイル読み込み
-3. Lexer
-4. Parser
-5. AST
-6. form
-7. const
-8. assignment
-9. dispin
-10. if
-11. ifel
-12. else
-13. for
-14. Semantic Analyzer
-15. C++ Code Generator
-16. .exe生成
-17. エラー処理改善
-```
-
-各段階でテストを追加する。
-
-**コンパイラがコンパイルできることを最優先し、言語機能を増やす前に既存機能が壊れていないことを確認する。**
