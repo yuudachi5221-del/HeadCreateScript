@@ -1,0 +1,33 @@
+name: Debug BOT_PAT
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      BOT_PAT: ${{ secrets.BOT_PAT }}   # ここが BOT_PAT に一致していることを確認
+
+    steps:
+      - name: Verify secret exists
+        run: |
+          if [ -z "${BOT_PAT}" ]; then
+            echo "BOT_PAT is EMPTY"
+            exit 1
+          fi
+          echo "BOT_PAT appears non-empty"
+
+      - name: Check token -> user
+        run: |
+          resp=$(curl -s -H "Authorization: token ${BOT_PAT}" https://api.github.com/user)
+          echo "USER_RESPONSE:"
+          echo "$resp" | sed -n '1,5p'
+          echo "$resp" | grep -E '"login"' || true
+
+      - name: Check repo permissions
+        run: |
+          resp2=$(curl -s -H "Authorization: token ${BOT_PAT}" https://api.github.com/repos/yuudachi5221-del/HeadCreateScript)
+          echo "REPO_RESPONSE (permissions snippet):"
+          echo "$resp2" | sed -n '1,12p'
+          echo "$resp2" | grep -E '"push"' || true
