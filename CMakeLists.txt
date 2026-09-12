@@ -4,11 +4,21 @@ project(HeadCreateScript VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(hcs_lib STATIC src/lexer.cpp src/runtime.cpp)
+# Library sources
+set(HCS_LIB_SOURCES
+  src/lexer.cpp
+  src/runtime.cpp
+  src/launcher.cpp           # launcher をライブラリに含める（main 等から利用可能にする）
+)
+
+add_library(hcs_lib STATIC ${HCS_LIB_SOURCES})
 target_include_directories(hcs_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 add_executable(hcs src/main.cpp)
-target_compile_definitions(hcs PRIVATE HCS_VERSION="${PROJECT_VERSION}")
+
+# Provide the project version to the compiler so main.cpp can print it
+target_compile_definitions(hcs PRIVATE HCS_VERSION=\"${PROJECT_VERSION}\")
+
 target_link_libraries(hcs PRIVATE hcs_lib)
 
 enable_testing()
