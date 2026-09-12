@@ -6,7 +6,7 @@
 #include <algorithm>
 
 static const std::unordered_set<std::string> kKeywords = {
-    "con", "form", "const", "if", "ifel", "else", "for", "name", "range",
+    "con", "form", "const", "if", "ifel", "else", "for", "while", "name", "range",
     "dispin", "blank", "true", "false"
 };
 
