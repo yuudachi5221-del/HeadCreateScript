@@ -1,0 +1,72 @@
+name: Auto apply changes and create PR
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      BOT_PAT: ${{ secrets.BOT_PAT }}
+    steps:
+      - name: Checkout (use HTTPS, do not use default GITHUB_TOKEN)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure git
+        run: |
+          git config user.name "hcs-auto-bot"
+          git config user.email "bot@example.com"
+
+      - name: Make changes (example)
+        run: |
+          # ここで自動で適用したい処理を実行します。
+          # 例: 既に用意したファイル群を作成するスクリプトをリポジトリに用意しているならここで実行
+          # echo "/* automated change */" >> src/auto_generated.cpp
+          # もしくはシェルでファイルを書き換える等
+          echo "// automated placeholder" > src/_auto_placeholder.cpp
+          git add src/_auto_placeholder.cpp
+
+      - name: Commit if there are changes
+        run: |
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "::set-output name=changed::false"
+          else
+            git commit -m "Automated changes (bot)"
+            echo "::set-output name=changed::true"
+          fi
+        id: commitcheck
+
+      - name: Push branch via PAT
+        if: steps.commitcheck.outputs.changed == 'true'
+        run: |
+          # create a unique branch name to avoid conflicts
+          BRANCH="auto/apply-$(date +%s)"
+          git branch -M "$BRANCH"
+          # set HTTPS remote with PAT
+          git remote set-url origin https://x-access-token:${BOT_PAT}@github.com/${{ github.repository }}.git
+          git push origin "$BRANCH"
+
+      - name: Create Pull Request
+        if: steps.commitcheck.outputs.changed == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const branch = (await github.rest.repos.listBranches({ owner: context.repo.owner, repo: context.repo.repo })).data.find(b => b.name.startsWith('auto/apply-'));
+            // Use the most recent branch created by this run (we pushed exactly one branch)
+            // Simpler: construct branch name from timestamp; but here we fetch branches beginning with prefix and pick the newest.
+            const branches = (await github.rest.repos.listBranches({ owner: context.repo.owner, repo: context.repo.repo, per_page: 100 })).data
+              .filter(b => b.name.startsWith('auto/apply-'))
+              .sort((a,b) => a.name.localeCompare(b.name));
+            const head = branches[branches.length-1].name;
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Apply automated changes (bot)',
+              head: head,
+              base: 'main',
+              body: 'This PR was created automatically by the bot workflow.'
+            });
+            core.setOutput('pr_url', pr.data.html_url);
