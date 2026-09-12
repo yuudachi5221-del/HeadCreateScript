@@ -61,6 +61,22 @@ void test_if_statement() {
     std::cout << "✓ Passed" << std::endl;
 }
 
+void test_while_statement() {
+    std::cout << "Test: While statement..." << std::endl;
+    Lexer lexer("con (x<10)<-while{ x=x+1; };", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_while = false;
+    bool found_arrow = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Keyword && token.text == "while") found_while = true;
+        if (token.type == TokenType::Arrow) found_arrow = true;
+    }
+    
+    assert(found_while && found_arrow);
+    std::cout << "✓ Passed" << std::endl;
+}
+
 void test_comment_removal() {
     std::cout << "Test: Comment removal..." << std::endl;
     Lexer lexer("</ This is a comment /> con form x=10;", true);
@@ -217,6 +233,70 @@ void test_complex_expression() {
     std::cout << "✓ Passed" << std::endl;
 }
 
+void test_const_keyword() {
+    std::cout << "Test: Const keyword..." << std::endl;
+    Lexer lexer("con const PI=3.14159;", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_const = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Keyword && token.text == "const") {
+            found_const = true;
+        }
+    }
+    
+    assert(found_const);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_ifel_keyword() {
+    std::cout << "Test: ifel keyword..." << std::endl;
+    Lexer lexer("con (x<=1)<-if{ dispin(\"A\"); } con (x<=3)<-ifel{ dispin(\"B\"); };", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_ifel = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Keyword && token.text == "ifel") {
+            found_ifel = true;
+        }
+    }
+    
+    assert(found_ifel);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_else_keyword() {
+    std::cout << "Test: else keyword..." << std::endl;
+    Lexer lexer("con ()<-else{ dispin(\"C\"); };", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_else = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Keyword && token.text == "else") {
+            found_else = true;
+        }
+    }
+    
+    assert(found_else);
+    std::cout << "✓ Passed" << std::endl;
+}
+
+void test_range_keyword() {
+    std::cout << "Test: range keyword..." << std::endl;
+    Lexer lexer("con for(0, name=\"i\", <=10, range=\"2\"){ dispin(i); };", true);
+    auto tokens = lexer.tokenize();
+    
+    bool found_range = false;
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::Keyword && token.text == "range") {
+            found_range = true;
+        }
+    }
+    
+    assert(found_range);
+    std::cout << "✓ Passed" << std::endl;
+}
+
 int main() {
     std::cout << "=== HCS Lexer Test Suite ===" << std::endl << std::endl;
     
@@ -224,6 +304,7 @@ int main() {
         test_simple_variable_declaration();
         test_string_literal();
         test_if_statement();
+        test_while_statement();
         test_comment_removal();
         test_boolean_literals();
         test_arithmetic_operators();
@@ -233,6 +314,10 @@ int main() {
         test_hexadecimal_numbers();
         test_string_escape_sequences();
         test_blank_keyword();
+        test_const_keyword();
+        test_ifel_keyword();
+        test_else_keyword();
+        test_range_keyword();
         test_complex_expression();
         
         std::cout << std::endl << "=== All tests passed! ===" << std::endl;
